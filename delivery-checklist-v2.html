@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home Depot Delivery Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; min-height: 100vh; }
+
+  header { background: #f96302; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 14px; }
+  header svg { width: 36px; height: 36px; }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header p { font-size: 0.8rem; opacity: 0.85; }
+
+  .summary { background: white; padding: 16px 24px; display: flex; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #e0e0e0; }
+  .stat { text-align: center; flex: 1; min-width: 80px; }
+  .stat .num { font-size: 1.6rem; font-weight: 700; }
+  .stat .lbl { font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat.delivered .num { color: #2e7d32; }
+  .stat.partial .num { color: #e65100; }
+  .stat.pending .num { color: #c62828; }
+  .stat.total .num { color: #1565c0; }
+
+  .progress-bar { height: 8px; background: #eee; margin: 0 24px 12px; border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #2e7d32, #66bb6a); border-radius: 4px; transition: width 0.4s; }
+
+  .controls { padding: 12px 24px; background: white; border-bottom: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .controls input { padding: 7px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.85rem; flex: 1; min-width: 180px; }
+
+  .chip-row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .filter-btn { padding: 6px 12px; border: 1.5px solid #ccc; background: white; border-radius: 20px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .filter-btn.active { background: #f96302; color: white; border-color: #f96302; }
+  .filter-btn:hover:not(.active) { border-color: #f96302; color: #f96302; }
+
+  .status-chip { padding: 6px 12px; border: 1.5px solid #ccc; background: white; border-radius: 20px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .status-chip.active { background: #222; color: white; border-color: #222; }
+  .status-chip:hover:not(.active) { border-color: #222; color: #222; }
+  .status-chip.delivered.active { background:#2e7d32; border-color:#2e7d32; }
+  .status-chip.partial.active { background:#e65100; border-color:#e65100; }
+  .status-chip.pending.active { background:#c62828; border-color:#c62828; }
+
+  .actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  .action-btn { padding: 7px 10px; border: 1px solid #ccc; background:#fff; border-radius:8px; font-size:0.78rem; cursor:pointer; }
+  .action-btn:hover { border-color:#999; }
+
+  .items { padding: 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+
+  .category-header { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-top: 8px; padding-bottom: 4px; border-bottom: 2px solid #e0e0e0; }
+
+  .item-card { background: white; border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 5px solid #ccc; transition: all 0.2s; }
+  .item-card.delivered { border-left-color: #2e7d32; background: #f1f8f2; }
+  .item-card.partial { border-left-color: #e65100; background: #fff8f4; }
+  .item-card.pending { border-left-color: #c62828; }
+
+  .item-info { flex: 1; }
+  .item-name { font-size: 0.88rem; font-weight: 600; line-height: 1.3; }
+  .item-cat { font-size: 0.72rem; color: #888; margin-top: 2px; }
+  .item-qty { font-size: 0.8rem; color: #555; margin-top: 4px; }
+
+  .item-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .status-btns { display: flex; gap: 4px; flex-wrap: wrap; justify-content:flex-end; }
+  .s-btn { padding: 4px 8px; border: 1.5px solid #ccc; background: white; border-radius: 5px; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; }
+  .s-btn:hover { opacity: 0.85; }
+  .s-btn.active-delivered { background: #2e7d32; color: white; border-color: #2e7d32; }
+  .s-btn.active-partial { background: #e65100; color: white; border-color: #e65100; }
+  .s-btn.active-pending { background: #c62828; color: white; border-color: #c62828; }
+
+  .partial-input { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #555; }
+  .partial-input input { width: 56px; padding: 3px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.78rem; text-align: center; }
+
+  .badge { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .badge-delivered { background: #c8e6c9; color: #1b5e20; }
+  .badge-partial { background: #ffe0cc; color: #bf360c; }
+  .badge-pending { background: #ffcdd2; color: #b71c1c; }
+
+  /* NEW: breakdown section */
+  .breakdown { margin: 12px 24px 0; background:#fff; border:1px solid #e6e6e6; border-radius:12px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); overflow:hidden; }
+  .breakdown-head { padding: 12px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #eee; }
+  .breakdown-head h2 { font-size: 0.95rem; }
+  .breakdown-head .sub { font-size: 0.78rem; color:#666; }
+  .tabs { padding: 10px 14px; display:flex; gap:8px; flex-wrap:wrap; border-bottom:1px solid #eee; }
+  .tab { padding: 6px 12px; border-radius: 999px; border:1.5px solid #ddd; background:#fff; cursor:pointer; font-size:0.78rem; }
+  .tab.active { background:#222; color:#fff; border-color:#222; }
+  .tab.delivered.active { background:#2e7d32; border-color:#2e7d32; }
+  .tab.partial.active { background:#e65100; border-color:#e65100; }
+  .tab.pending.active { background:#c62828; border-color:#c62828; }
+
+  .breakdown-body { padding: 12px 14px 14px; }
+  .b-list { display:flex; flex-direction:column; gap:8px; }
+  .b-item { padding: 10px 10px; border: 1px solid #eee; border-radius: 10px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .b-left { min-width:0; }
+  .b-name { font-weight:600; font-size:0.86rem; line-height:1.25; }
+  .b-meta { margin-top:4px; font-size:0.74rem; color:#666; display:flex; gap:10px; flex-wrap:wrap; }
+  .b-right { text-align:right; font-size:0.78rem; color:#444; white-space:nowrap; }
+  .pill { display:inline-block; padding: 2px 8px; border-radius:999px; font-size:0.7rem; font-weight:700; }
+  .pill.delivered { background:#c8e6c9; color:#1b5e20; }
+  .pill.partial { background:#ffe0cc; color:#bf360c; }
+  .pill.pending { background:#ffcdd2; color:#b71c1c; }
+
+  .empty-mini { text-align:center; color:#aaa; padding: 26px 8px; }
+
+  @media (max-width: 600px) {
+    .item-card { flex-direction: column; align-items: flex-start; }
+    .item-controls { align-items: flex-start; width: 100%; }
+    .breakdown { margin: 12px 14px 0; }
+    .items { padding: 16px 14px; }
+    .controls { padding: 12px 14px; }
+    .progress-bar { margin: 0 14px 12px; }
+    .summary { padding: 16px 14px; }
+    header { padding: 16px 14px; }
+    .actions { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg viewBox="0 0 24 24" fill="white"><path d="M19 7h-3V6a4 4 0 0 0-8 0v1H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zm-9-1a2 2 0 0 1 4 0v1h-4zm8 13H6V9h2v1a1 1 0 0 0 2 0V9h4v1a1 1 0 0 0 2 0V9h2z"/></svg>
+  <div><h1>Home Depot Delivery Tracker</h1><p>Track delivered, partial, and pending items</p></div>
+</header>
+
+<div class="summary">
+  <div class="stat total"><div class="num" id="s-total">0</div><div class="lbl">Total Items</div></div>
+  <div class="stat delivered"><div class="num" id="s-delivered">0</div><div class="lbl">✅ Delivered</div></div>
+  <div class="stat partial"><div class="num" id="s-partial">0</div><div class="lbl">📦 Partial</div></div>
+  <div class="stat pending"><div class="num" id="s-pending">0</div><div class="lbl">⏳ Pending</div></div>
+</div>
+<div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+
+<!-- NEW: what was delivered / partial / pending (auto-updates) -->
+<section class="breakdown" aria-label="Delivery Breakdown">
+  <div class="breakdown-head">
+    <div>
+      <h2>Delivery Breakdown</h2>
+      <div class="sub">Automatically shows what's delivered, partial, and not delivered yet.</div>
+    </div>
+  </div>
+  <div class="tabs" id="breakdown-tabs"></div>
+  <div class="breakdown-body">
+    <div class="b-list" id="breakdown-list"></div>
+  </div>
+</section>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="🔍 Search items..." oninput="render()">
+
+  <div class="chip-row" id="status-filters"></div>
+  <div class="chip-row" id="cat-filters"></div>
+
+  <div class="actions">
+    <button class="action-btn" onclick="resetAll()">Reset All</button>
+    <button class="action-btn" onclick="exportCSV()">Export CSV</button>
+  </div>
+</div>
+
+<div class="items" id="items-list"></div>
+
+<script>
+const raw = [
+  {cat:"BLDG. MATERIALS", name:"1/2 in. x 4 ft. x 8 ft. UltraLight Drywall", qty:22},
+  {cat:"BLDG. MATERIALS", name:"1/2 in. x 4 ft. x 8 ft. UltraLight Mold Tough Drywall", qty:4},
+  {cat:"BLDG. MATERIALS", name:"2-1/16 in. x 250 ft. Paper Drywall Joint Tape", qty:4},
+  {cat:"BLDG. MATERIALS", name:"38 in. Pet Dog Bathing Station w/Ramp Professional Stainless Steel Dog Grooming Tub", qty:1},
+  {cat:"BLDG. MATERIALS", name:"4.5 gal. All Purpose Ready-Mixed Joint Compound", qty:4},
+  {cat:"BLDG. MATERIALS", name:"5/8 in. x 4 ft. x 8 ft. Firecode X Drywall", qty:23},
+  {cat:"BLDG. MATERIALS", name:"50 lb. Fast-Setting Concrete Mix", qty:5},
+  {cat:"BLDG. MATERIALS", name:"FOAMULAR NGX 150 2 in. x 4 ft. x 8 ft. R10 Unfaced Foam Board XPS Insulation", qty:25},
+  {cat:"BLDG. MATERIALS", name:"FibaTape Alkali-Resistant 2 in. x 150 ft. Self-Adhesive Cement Board Tape", qty:1},
+  {cat:"BLDG. MATERIALS", name:"HardieBacker 1/2 in. x 3 ft. x 5 ft. Cement Backerboard", qty:6},
+  {cat:"BLDG. MATERIALS", name:"R-13 Unfaced Fiberglass Insulation Batt 15 in. x 93 in. (1 Bag)", qty:10},
+  {cat:"ELECTRICAL", name:"1-Gang 20 cu. in. New Work Electrical Ceiling Box with Captive Nails (B520A-UPC)", qty:6},
+  {cat:"ELECTRICAL", name:"2-Gang 25 cu. in. Electrical PVC Old Work Switch and Outlet Box (B225R-UPC)", qty:5},
+  {cat:"ELECTRICAL", name:"250 ft. 12/2 Solid Romex SIMpull CU NM-B W/G Wire", qty:1},
+  {cat:"ELECTRICAL", name:"250 ft. 14/2 Romex SIMpull Solid NM-B W/G Wire", qty:1},
+  {cat:"ELECTRICAL", name:"Electrical PVC 1-Gang 20 cu. in. New Work Electrical Outlet Box (B120A-UPC)", qty:20},
+  {cat:"HARDWARE", name:"#6 x 1-1/4 in. #2 Phillips Bugle Head Coarse Thread Drywall Screws 5 lb. Box", qty:2},
+  {cat:"HARDWARE", name:"#8 x 3 in. #2 Phillips Bugle Head Coarse Thread Wood Screws 1 lb. Box", qty:5},
+  {cat:"HARDWARE", name:"#9 x 1-1/4 in. Star Drive Serrated Head Cement Board Screws (750-Pack)", qty:1},
+  {cat:"HARDWARE", name:"#9 x 3 in. Star Drive Dual Flat Head Coarse Thread Construction Screws 1 lb. Box", qty:2},
+  {cat:"HARDWARE", name:"1 in. x 18-Gauge Brad Nails (2500 per Pack)", qty:1},
+  {cat:"HARDWARE", name:"2 in. x 0.113-Gauge 30-Degree Galvanized Ring Shank Paper Tape Framing Nails (2,000 per Box)", qty:1},
+  {cat:"HARDWARE", name:"2 in. x 18-Gauge Glue Collated Straight Bright Finish Brad Nails (1000-Pack)", qty:1},
+  {cat:"HARDWARE", name:"2-Pack 6 x 1-1/4 in. Phillips Bugle Head Coarse Thread Sharp Point Drywall Screws (10 lb./2,380-Piece)", qty:1},
+  {cat:"HARDWARE", name:"3 in. x 0.120-Gauge 30-Degree Brite Smooth Shank Paper Tape Framing Nails (2500 per Box)", qty:1},
+  {cat:"HARDWARE", name:"3/4 in. x 18-Gauge Glue Collated Straight Brad Nails (1000-Pack)", qty:1},
+  {cat:"HARDWARE", name:"Tool Storage 46 in. W x 18 in. D 9-Drawer Mobile Workbench Cabinet in Gloss Black", qty:1},
+  {cat:"KIT/BATH", name:"50 in. W x 16 in. H x 3.5 in. D Shower Niche Ready for Tile Single Shelf Organizer in Black", qty:1},
+  {cat:"KIT/BATH", name:"56 in. - 60 in. W x 72 in. H Sliding Framed Shower Door in Matte Black with Clear Glass", qty:1},
+  {cat:"KIT/BATH", name:"Highline Arc 12 in. Rough In 1-Piece 1.28 GPF Single Flush Elongated Chair Height Toilet in White with Soft Close Seat", qty:1},
+  {cat:"LUMBER", name:"2 in. x 4 in. x 8 ft. #2 Pressure-Treated Lumber", qty:28},
+  {cat:"LUMBER", name:"2 in. x 4 in. x 84 in. Prime KD Whitewood Stud", qty:160},
+  {cat:"MILLWORK", name:"Pro Pack 1/2 in. x 5-1/2 in. x 144 in. Primed Pine Baseboard Moulding (4-Pack – 48 Total Linear Feet)", qty:3},
+  {cat:"PAINT", name:"Advanced Silicone 2 Caulk 10.1 oz Kitchen and Bath Sealant Clear", qty:1},
+  {cat:"PAINT", name:"Alex Flex 10.1 oz. White Latex Premium Molding and Trim Sealant", qty:5},
+  {cat:"PLUMBING", name:"16 oz. X-15 PVC Shower Pan Liner Adhesive Cement", qty:1},
+  {cat:"PLUMBING", name:"5 ft. x 6 ft. PVC Shower Pan Liner Roll with 2-Pack of Corner Dams", qty:1},
+  {cat:"PLUMBING", name:"Round Gray PVC Shower Drain", qty:1},
+  {cat:"PLUMBING", name:"Shower Pan Liner Corner Dam", qty:2},
+  {cat:"PLUMBING", name:"Single-Handle Rain 2-Spray Square 10 in. Dual Shower Head Fixed and Handheld in Matte Black", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"10-Tote Metal Storage Rack for HDX 14 and 27 Gal. Totes (50 in. W x 78 in. H x 24 in. D)", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"32 in. W x 71 in. H x 16 in. D Metal Garage Storage Freestanding Cabinet with Pegboards, 5-Adjustable Shelves in Black", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"4-Shelf Metal Industrial Duty Freestanding Garage Storage Shelving Unit in Black (77 in. W x 72 in. H x 24 in. D)", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"CustomFloat 50 lb. Brown Bedding Mortar and Brown Coat", qty:5},
+  {cat:"WALL&FLOOR COVER", name:"LASH Tile Leveling System Project Pack - 100 1/16 in. Leveling Clips and 100 Wedges (200-Piece)", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"Lakeside Hill Oak 22 MIL x 8.7 in. W x 48 in. L Click Lock Waterproof Luxury Vinyl Plank Flooring (20.1 sq. ft./case)", qty:45},
+  {cat:"WALL&FLOOR COVER", name:"Mix Marble Pebbles 11.42 in. x 11.42 in. x 10 mm Tumbled Marble Mosaic Tile (9 sq. ft. per case)", qty:2},
+  {cat:"WALL&FLOOR COVER", name:"Montgomery Ribbon Maple 24 in. x 48 in. Matte Porcelain Floor and Wall Tile (15.49 sq. ft./Case)", qty:5},
+  {cat:"WALL&FLOOR COVER", name:"Polyblend Plus #380 Haystack 10 lb. Unsanded Grout", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"Polyblend Plus #381 Bright White 1 lb. Unsanded Grout", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"Polyblend Plus #60 Charcoal 25 lb. Sanded Grout", qty:1},
+  {cat:"WALL&FLOOR COVER", name:"Secora Sandstone 15 in. x 30 in. Matte Porcelain Stone Look Floor and Wall Tile (16.35 sq. ft./case)", qty:3},
+  {cat:"WALL&FLOOR COVER", name:"Slate Black Matte 12 in. x 24 in. Stone Look Porcelain Floor and Wall Tile (13.56 sq. ft./Case)", qty:6},
+  {cat:"WALL&FLOOR COVER", name:"VersaBond-LFT 50 lb. White Professional Medium Bed Large Format Tile Mortar", qty:6},
+];
+
+// ---------- persistence ----------
+const LS_KEY = 'hd_delivery_tracker_v2';
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (!saved || !Array.isArray(saved)) return null;
+    // Validate length; if raw changes later, fall back safely
+    if (saved.length !== raw.length) return null;
+    return saved;
+  } catch(e) { return null; }
+}
+
+function saveState() {
+  try {
+    const compact = state.map(({status, received}) => ({status, received}));
+    localStorage.setItem(LS_KEY, JSON.stringify(compact));
+  } catch(e) {}
+}
+
+// state: status = 'pending'|'partial'|'delivered', received = number
+const saved = loadState();
+const state = raw.map((item, i) => {
+  const s = saved ? saved[i] : null;
+  const status = s?.status || 'pending';
+  const received = typeof s?.received === 'number' ? s.received : 0;
+  return ({ ...item, id: i, status, received });
+});
+
+// ---------- filters ----------
+const cats = ['ALL', ...new Set(raw.map(r => r.cat))];
+let activeCat = 'ALL';
+let activeStatus = 'ALL'; // ALL | delivered | partial | pending
+
+// Build category filters
+const catDiv = document.getElementById('cat-filters');
+catDiv.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+cats.forEach(c => {
+  const btn = document.createElement('button');
+  btn.className = 'filter-btn' + (c === 'ALL' ? ' active' : '');
+  btn.textContent = c;
+  btn.onclick = () => {
+    activeCat = c;
+    document.querySelectorAll('#cat-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  };
+  catDiv.appendChild(btn);
+});
+
+// Build status filters
+const statusDiv = document.getElementById('status-filters');
+const statusOptions = [
+  {key:'ALL', label:'Status: All', cls:''},
+  {key:'delivered', label:'✅ Delivered', cls:'delivered'},
+  {key:'partial', label:'📦 Partial', cls:'partial'},
+  {key:'pending', label:'⏳ Pending', cls:'pending'},
+];
+statusOptions.forEach(opt => {
+  const chip = document.createElement('button');
+  chip.className = 'status-chip ' + (opt.cls || '') + (opt.key === 'ALL' ? ' active' : '');
+  chip.textContent = opt.label;
+  chip.onclick = () => {
+    activeStatus = opt.key;
+    document.querySelectorAll('#status-filters .status-chip').forEach(b => b.classList.remove('active'));
+    chip.classList.add('active');
+    render();
+  };
+  statusDiv.appendChild(chip);
+});
+
+// Breakdown tabs
+let breakdownTab = 'delivered'; // default view
+const breakdownTabsDiv = document.getElementById('breakdown-tabs');
+[
+  {key:'delivered', label:'✅ Delivered'},
+  {key:'partial', label:'📦 Partial'},
+  {key:'pending', label:'⏳ Pending'},
+].forEach(t => {
+  const b = document.createElement('button');
+  b.className = 'tab ' + t.key + (t.key === breakdownTab ? ' active' : '');
+  b.textContent = t.label;
+  b.onclick = () => {
+    breakdownTab = t.key;
+    document.querySelectorAll('#breakdown-tabs .tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    renderBreakdown(); // only refresh breakdown
+  };
+  breakdownTabsDiv.appendChild(b);
+});
+
+function setStatus(id, status) {
+  state[id].status = status;
+  if (status === 'delivered') state[id].received = state[id].qty;
+  if (status === 'pending') state[id].received = 0;
+  if (status === 'partial' && state[id].received === 0) state[id].received = Math.min(1, state[id].qty);
+  saveState();
+  render();
+}
+
+function setReceived(id, val) {
+  const n = Math.min(Math.max(0, parseInt(val) || 0), state[id].qty);
+  state[id].received = n;
+  if (n === 0) state[id].status = 'pending';
+  else if (n >= state[id].qty) state[id].status = 'delivered';
+  else state[id].status = 'partial';
+  saveState();
+  render();
+}
+
+function resetAll() {
+  if (!confirm('Reset all items to Not Delivered (Pending)?')) return;
+  state.forEach(it => { it.status = 'pending'; it.received = 0; });
+  saveState();
+  render();
+}
+
+function exportCSV() {
+  // Exports the FULL list (not just filtered)
+  const header = ['Category','Item','Ordered Qty','Received Qty','Status','Remaining'];
+  const rows = state.map(it => [
+    it.cat,
+    it.name.replaceAll('"','""'),
+    it.qty,
+    it.received,
+    it.status,
+    Math.max(0, it.qty - it.received),
+  ]);
+  const csv = [
+    header.join(','),
+    ...rows.map(r => `"${r[0]}","${r[1]}",${r[2]},${r[3]},"${r[4]}",${r[5]}`)
+  ].join('\n');
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'home-depot-delivery-tracker.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function renderBreakdown() {
+  const list = document.getElementById('breakdown-list');
+  list.innerHTML = '';
+
+  const items = state
+    .filter(it => it.status === breakdownTab)
+    // sort within status: category then name
+    .slice()
+    .sort((a,b) => (a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name)));
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-mini';
+    empty.textContent = breakdownTab === 'delivered' ? 'Nothing marked delivered yet.' :
+                        breakdownTab === 'partial' ? 'No partial deliveries yet.' :
+                        'No pending items (nice!).';
+    list.appendChild(empty);
+    return;
+  }
+
+  items.forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'b-item';
+
+    const remaining = Math.max(0, it.qty - it.received);
+    const rightText = it.qty > 1 ? `${it.received}/${it.qty} received` : (it.status === 'delivered' ? 'Received' : 'Not received');
+
+    const pillClass = it.status;
+    const pillLabel = it.status === 'delivered' ? 'DELIVERED' : it.status === 'partial' ? 'PARTIAL' : 'PENDING';
+
+    const extra = it.status === 'partial' ? `Remaining: ${remaining}` : (it.status === 'pending' ? `Remaining: ${it.qty}` : `Remaining: 0`);
+
+    row.innerHTML = `
+      <div class="b-left">
+        <div class="b-name">${it.name}</div>
+        <div class="b-meta">
+          <span>${it.cat}</span>
+          <span>Ordered: <strong>${it.qty}</strong></span>
+          <span>${extra}</span>
+        </div>
+      </div>
+      <div class="b-right">
+        <div><span class="pill ${pillClass}">${pillLabel}</span></div>
+        <div style="margin-top:6px;">${rightText}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const list = document.getElementById('items-list');
+  list.innerHTML = '';
+
+  let delivered = 0, partial = 0, pending = 0;
+  state.forEach(item => {
+    if (item.status === 'delivered') delivered++;
+    else if (item.status === 'partial') partial++;
+    else pending++;
+  });
+  const total = state.length;
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-delivered').textContent = delivered;
+  document.getElementById('s-partial').textContent = partial;
+  document.getElementById('s-pending').textContent = pending;
+  document.getElementById('progress').style.width = Math.round((delivered / total) * 100) + '%';
+
+  // NEW: refresh breakdown lists/tabs
+  renderBreakdown();
+
+  const filtered = state.filter(item => {
+    const matchesCat = (activeCat === 'ALL' || item.cat === activeCat);
+    const matchesSearch = (item.name.toLowerCase().includes(q) || item.cat.toLowerCase().includes(q));
+    const matchesStatus = (activeStatus === 'ALL' || item.status === activeStatus);
+    return matchesCat && matchesSearch && matchesStatus;
+  });
+
+  let lastCat = null;
+  filtered.forEach(item => {
+    if (item.cat !== lastCat) {
+      const ch = document.createElement('div');
+      ch.className = 'category-header';
+      ch.textContent = item.cat;
+      list.appendChild(ch);
+      lastCat = item.cat;
+    }
+
+    const card = document.createElement('div');
+    card.className = `item-card ${item.status}`;
+
+    const badgeClass = item.status === 'delivered' ? 'badge-delivered' : item.status === 'partial' ? 'badge-partial' : 'badge-pending';
+    const badgeLabel = item.status === 'delivered' ? '✅ Delivered' : item.status === 'partial' ? '📦 Partial' : '⏳ Pending';
+
+    card.innerHTML = `
+      <div class="item-info">
+        <div class="item-name">${item.name}</div>
+        <div class="item-cat">${item.cat}</div>
+        <div class="item-qty">Ordered: <strong>${item.qty}</strong> unit${item.qty > 1 ? 's' : ''}</div>
+      </div>
+      <div class="item-controls">
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+        <div class="status-btns">
+          <button class="s-btn ${item.status==='pending'?'active-pending':''}" onclick="setStatus(${item.id},'pending')">Not Delivered</button>
+          <button class="s-btn ${item.status==='partial'?'active-partial':''}" onclick="setStatus(${item.id},'partial')">Partial</button>
+          <button class="s-btn ${item.status==='delivered'?'active-delivered':''}" onclick="setStatus(${item.id},'delivered')">Delivered</button>
+        </div>
+        ${item.qty > 1 ? `<div class="partial-input">Received: <input type="number" min="0" max="${item.qty}" value="${item.received}" onchange="setReceived(${item.id}, this.value)" oninput="setReceived(${item.id}, this.value)"> / ${item.qty}</div>` : ''}
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;color:#aaa;padding:40px;';
+    empty.textContent = 'No items found for your current filters.';
+    list.appendChild(empty);
+  }
+}
+
+render();
+</script>
+</body>
+</html>
